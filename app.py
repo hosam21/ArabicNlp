@@ -80,10 +80,7 @@ def load_models():
         sarcasm_model = joblib.load(os.path.join(models_dir, 'sarcasm_rf_model.joblib'))
         sarcasm_encoder = joblib.load(os.path.join(models_dir, 'sarcasm_label_encoder.joblib'))
         
-        # Print available classes for debugging
-        st.write("Available sentiment classes:", sentiment_encoder.classes_)
-        st.write("Available sarcasm classes:", sarcasm_encoder.classes_)
-        
+
         return sentiment_model, sentiment_encoder, sarcasm_model, sarcasm_encoder
     except Exception as e:
         st.error(f"Error loading models: {str(e)}")
