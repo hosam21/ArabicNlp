@@ -6,7 +6,8 @@ import os
 from text_preprocessor import ArabicTextPreprocessor
 from emoji_handler import EmojiHandler
 from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, hstack
+from sklearn.preprocessing import StandardScaler
 
 # Set page config
 st.set_page_config(
@@ -76,43 +77,52 @@ def load_models():
         st.error(f"Error loading models: {str(e)}")
         return None, None, None, None
 
-# Load TF-IDF vectorizer
+# Load TF-IDF vectorizer and scaler
 @st.cache_resource
-def load_vectorizer():
+def load_vectorizer_and_scaler():
     try:
         vectorizer = joblib.load(os.path.join('models', 'tfidf_vectorizer.joblib'))
+        scaler = joblib.load(os.path.join('models', 'scaler.joblib'))
+        
         # Ensure the vectorizer is fitted and has the correct vocabulary
         if not hasattr(vectorizer, 'vocabulary_'):
             st.error("TF-IDF vectorizer is not properly fitted")
-            return None
+            return None, None
         
         # Store the expected feature count and vocabulary
         vectorizer.expected_features = len(vectorizer.vocabulary_)
         vectorizer.expected_vocabulary = vectorizer.vocabulary_
-        return vectorizer
+        return vectorizer, scaler
     except Exception as e:
-        st.error(f"Error loading vectorizer: {str(e)}")
-        return None
+        st.error(f"Error loading vectorizer or scaler: {str(e)}")
+        return None, None
 
-def ensure_feature_count(vectorizer, text_vectorized):
-    """Ensure the vectorized text has the correct number of features"""
-    current_features = text_vectorized.shape[1]
-    expected_features = vectorizer.expected_features
+def prepare_features(text, vectorizer, scaler):
+    """Prepare features exactly as done during training"""
+    # Get TF-IDF features
+    text_vectorized = vectorizer.transform([text])
     
-    if current_features != expected_features:
-        # Create a new sparse matrix with the correct number of features
-        new_data = np.zeros((1, expected_features))
-        return csr_matrix(new_data)
+    # Calculate additional features
+    text_length = len(text)
+    word_count = len(text.split())
+    avg_word_length = np.mean([len(word) for word in text.split()]) if word_count > 0 else 0
     
-    return text_vectorized
+    # Create additional features array
+    additional_features = np.array([[text_length, word_count, avg_word_length]])
+    additional_features_scaled = scaler.transform(additional_features)
+    
+    # Combine features
+    combined_features = hstack([text_vectorized, additional_features_scaled])
+    
+    return combined_features
 
 def main():
     # Load resources
     text_preprocessor, emoji_handler = load_preprocessors()
     models = load_models()
-    vectorizer = load_vectorizer()
+    vectorizer, scaler = load_vectorizer_and_scaler()
 
-    if None in models or vectorizer is None:
+    if None in models or vectorizer is None or scaler is None:
         st.error("""
         Unable to load required models. Please ensure the following files are available in the 'models' directory:
         - sentiment_rf_model.joblib
@@ -120,6 +130,7 @@ def main():
         - sarcasm_rf_model.joblib
         - sarcasm_label_encoder.joblib
         - tfidf_vectorizer.joblib
+        - scaler.joblib
         """)
         return
 
@@ -140,21 +151,18 @@ def main():
                     processed_text = text_preprocessor.preprocess(text)
                     processed_text = emoji_handler.process_emojis(processed_text)
 
-                    # Vectorize text
+                    # Prepare features
                     try:
-                        # Transform the text using the fitted vectorizer
-                        text_vectorized = vectorizer.transform([processed_text])
-                        # Ensure correct feature count
-                        text_vectorized = ensure_feature_count(vectorizer, text_vectorized)
+                        features = prepare_features(processed_text, vectorizer, scaler)
                     except Exception as e:
-                        st.error(f"Error vectorizing text: {str(e)}")
+                        st.error(f"Error preparing features: {str(e)}")
                         return
 
                     # Get predictions
-                    sentiment_pred = sentiment_model.predict(text_vectorized)
+                    sentiment_pred = sentiment_model.predict(features)
                     sentiment_label = sentiment_encoder.inverse_transform(sentiment_pred)[0]
 
-                    sarcasm_pred = sarcasm_model.predict(text_vectorized)
+                    sarcasm_pred = sarcasm_model.predict(features)
                     sarcasm_label = sarcasm_encoder.inverse_transform(sarcasm_pred)[0]
 
                     # Display results
