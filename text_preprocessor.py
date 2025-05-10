@@ -16,14 +16,24 @@ logger = logging.getLogger(__name__)
 # Download required NLTK data
 def download_nltk_data():
     try:
-        nltk.data.find('tokenizers/punkt')
-    except LookupError:
-        nltk.download('punkt')
-    
-    try:
-        nltk.data.find('corpora/stopwords')
-    except LookupError:
-        nltk.download('stopwords')
+        # Create a directory for NLTK data in the current working directory
+        nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
+        os.makedirs(nltk_data_dir, exist_ok=True)
+        
+        # Add the directory to NLTK's data path
+        nltk.data.path.append(nltk_data_dir)
+        
+        # Download required NLTK data
+        for resource in ['punkt', 'stopwords']:
+            try:
+                nltk.data.find(f'tokenizers/{resource}' if resource == 'punkt' else f'corpora/{resource}')
+            except LookupError:
+                logger.info(f"Downloading NLTK {resource} data...")
+                nltk.download(resource, download_dir=nltk_data_dir, quiet=True)
+                logger.info(f"Successfully downloaded {resource}")
+    except Exception as e:
+        logger.error(f"Error downloading NLTK data: {str(e)}")
+        raise
 
 class ArabicTextPreprocessor:
     def __init__(self):
@@ -31,8 +41,12 @@ class ArabicTextPreprocessor:
         download_nltk_data()
         # Initialize Arabic stopwords
         
-        with open("stop_list.txt", encoding="utf8") as f:
-            filtered_sw = {w.strip() for w in f if w.strip()}
+        try:
+            with open("stop_list.txt", encoding="utf8") as f:
+                filtered_sw = {w.strip() for w in f if w.strip()}
+        except FileNotFoundError:
+            logger.warning("stop_list.txt not found, using NLTK Arabic stopwords")
+            filtered_sw = set(stopwords.words('arabic'))
         
         self.stop_words = set(filtered_sw)
          
