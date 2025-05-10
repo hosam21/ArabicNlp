@@ -1,19 +1,16 @@
 import re
 import string
 import nltk
-from nltk.tokenize import word_tokenize
+import os
 from nltk.corpus import stopwords
 import arabic_reshaper
 from bidi.algorithm import get_display
-import logging
-from emoji_handler import EmojiHandler
 import logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Download required NLTK data
 def download_nltk_data():
     try:
         # Create a directory for NLTK data in the current working directory
@@ -23,24 +20,23 @@ def download_nltk_data():
         # Add the directory to NLTK's data path
         nltk.data.path.append(nltk_data_dir)
         
-        # Download required NLTK data
-        for resource in ['punkt', 'stopwords']:
-            try:
-                nltk.data.find(f'tokenizers/{resource}' if resource == 'punkt' else f'corpora/{resource}')
-            except LookupError:
-                logger.info(f"Downloading NLTK {resource} data...")
-                nltk.download(resource, download_dir=nltk_data_dir, quiet=True)
-                logger.info(f"Successfully downloaded {resource}")
+        # Only download stopwords
+        try:
+            nltk.data.find('corpora/stopwords')
+        except LookupError:
+            logger.info("Downloading NLTK stopwords data...")
+            nltk.download('stopwords', download_dir=nltk_data_dir, quiet=True)
+            logger.info("Successfully downloaded stopwords")
     except Exception as e:
         logger.error(f"Error downloading NLTK data: {str(e)}")
         raise
 
 class ArabicTextPreprocessor:
     def __init__(self):
-
+        # Download required NLTK data
         download_nltk_data()
-        # Initialize Arabic stopwords
         
+        # Initialize Arabic stopwords
         try:
             with open("stop_list.txt", encoding="utf8") as f:
                 filtered_sw = {w.strip() for w in f if w.strip()}
@@ -49,44 +45,49 @@ class ArabicTextPreprocessor:
             filtered_sw = set(stopwords.words('arabic'))
         
         self.stop_words = set(filtered_sw)
-         
-
-        # Define common Arabic noise patterns
-        self.noise_patterns = {
-            r'[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s]': '',  # Keep only Arabic characters
-            r'\s+': ' ',  # Replace multiple spaces with single space
-            r'[^\w\s]': '',  # Remove special characters
-            r'[a-zA-Z]': '',  # Remove English characters
-        }
-
-        # Initialize emoji handler
-        self.emoji_handler = EmojiHandler()
         
-    def remove_duplicate_words(self, text):
+        # Define positive and negative words to keep
+        self.positive_words = {
+            "جميل", "رائع", "ممتاز", "لذيذ", "مرح", "سعيد", "مبتهج", "متفائل",
+            "متحمس", "مبهر", "مذهل", "مبشر", "مفعم", "مشرق", "منير", "مضيء",
+            "مبهرج", "ذكي", "لطيف", "كريم", "موهوب", "ودود", "مسؤول", "مفيد",
+            "ملهم", "متحمس"
+        }
+        
+        self.negative_words = {
+            "سيء", "فظيع", "قبيح", "بغيض", "حزين", "شرير", "غاضب", "خائف",
+            "متوتر", "كسول", "قذر", "مقرف", "بشع", "متعجرف", "متعصب",
+            "مثير للاشمئزاز", "كارثي", "مؤلم", "محبط", "مظلم", "قاتم", "مخيف",
+            "مؤذي", "متخلف", "بائس", "مريض", "حقير", "غبي", "أحمق", "متعفن",
+            "مزعج", "مثير للقلق", "مغرض", "وقح", "عدواني", "غير موثوق"
+        }
+        
+        # Remove sentiment words from stopwords
+        self.stop_words = self.stop_words - self.positive_words - self.negative_words
+        
+        logger.info("Initialized ArabicTextPreprocessor")
 
-        if not text:
-            return text
-
+    def remove_duplicate_phrases(self, text, max_phrase_length=3):
+        """Remove duplicate consecutive phrases"""
         words = text.split()
-        if not words:
+        if len(words) <= max_phrase_length:
             return text
 
-        # Only remove consecutive duplicates
-        result = []
-        prev_word = None
+        for length in range(max_phrase_length, 0, -1):
+            i = 0
+            while i < len(words) - length:
+                phrase = ' '.join(words[i:i+length])
+                next_phrase = ' '.join(words[i+length:i+2*length])
+                if phrase == next_phrase:
+                    words = words[:i+length] + words[i+2*length:]
+                else:
+                    i += 1
+        return ' '.join(words)
 
-        for word in words:
-            # Only add the word if it's different from the previous word
-            if word != prev_word:
-                result.append(word)
-                prev_word = word
-
-        return ' '.join(result)
-
-    def remove_diacritics(self, text):
-        """Remove Arabic diacritics from text"""
-        text = re.sub(self.arabic_diacritics, '', text)
-        return text
+    def remove_duplicate_words(self, text):
+        """Remove duplicate consecutive words"""
+        words = text.split()
+        return ' '.join(word for i, word in enumerate(words) if i == 0 or word != words[i-1])
 
     def remove_diacritics(self, text):
         """Remove Arabic diacritics"""
@@ -94,81 +95,74 @@ class ArabicTextPreprocessor:
 
     def remove_urls(self, text):
         """Remove URLs from text"""
-        url_pattern = re.compile(r'https?://\S+|www\.\S+')
-        return url_pattern.sub('', text)
+        return re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
 
     def remove_mentions(self, text):
-        """Remove Twitter mentions"""
+        """Remove @mentions from text"""
         return re.sub(r'@\w+', '', text)
 
     def remove_hashtags(self, text):
-        """Remove hashtags"""
+        """Remove #hashtags from text"""
         return re.sub(r'#\w+', '', text)
 
     def remove_numbers(self, text):
-        """Remove numbers"""
+        """Remove numbers from text"""
         return re.sub(r'\d+', '', text)
 
     def remove_punctuations(self, text):
-        """Remove punctuations"""
-        translator = str.maketrans('', '', self.punctuations)
+        """Remove punctuations from text"""
+        translator = str.maketrans('', '', string.punctuation)
         return text.translate(translator)
 
     def remove_stopwords(self, text):
-        """Remove Arabic stopwords"""
+        """Remove stopwords from text using simple split"""
         words = text.split()
-        return ' '.join([word for word in words if word not in self.stop_words])
+        return ' '.join(word for word in words if word not in self.stop_words)
 
     def normalize_arabic_text(self, text):
-        """Normalize Arabic text by standardizing characters"""
-        # Normalize Alef variations
-        text = re.sub("[إأآا]", "ا", text)
-        # Normalize Ya variations
-        text = re.sub("ى", "ي", text)
-        # Normalize Ta Marbuta
-        text = re.sub("ة", "ه", text)
-        # Normalize Kaf
-        text = re.sub("گ", "ك", text)
-        # Normalize Waw
-        text = re.sub("ؤ", "و", text)
-        # Normalize Ya with Hamza
-        text = re.sub("ئ", "ي", text)
-        return text
+        """Normalize Arabic text"""
+        try:
+            # Reshape Arabic text
+            reshaped_text = arabic_reshaper.reshape(text)
+            # Handle bidirectional text
+            bidi_text = get_display(reshaped_text)
+            return bidi_text
+        except Exception as e:
+            logger.error(f"Error in normalize_arabic_text: {str(e)}")
+            return text
 
     def remove_noise(self, text):
-        """Remove noise patterns from text"""
-        for pattern, replacement in self.noise_patterns.items():
-            text = re.sub(pattern, replacement, text)
-        return text
+        """Remove noise from text"""
+        # Remove extra whitespace
+        text = re.sub(r'\s+', ' ', text)
+        # Remove special characters
+        text = re.sub(r'[^\w\s]', '', text)
+        return text.strip()
 
     def preprocess(self, text):
         """Apply all preprocessing steps to the text"""
-        if not isinstance(text, str):
+        if not text:
             return ""
 
-        # Process emojis first
-        original_text = text
-        text = self.emoji_handler.process_emojis(text)
+        # Convert to string if not already
+        text = str(text)
 
-        if text != original_text:
-            logger.info(f"Emoji processing changed text from '{original_text}' to '{text}'")
+        try:
+            # Apply preprocessing steps
+            text = self.remove_urls(text)
+            text = self.remove_mentions(text)
+            text = self.remove_hashtags(text)
+            text = self.remove_numbers(text)
+            text = self.remove_punctuations(text)
+            text = self.remove_diacritics(text)
+            text = self.normalize_arabic_text(text)
+            text = self.remove_duplicate_phrases(text)
+            text = self.remove_duplicate_words(text)
+            text = self.remove_stopwords(text)
+            text = self.remove_noise(text)
 
-
-
-
-        # Apply other preprocessing steps
-        text = self.remove_urls(text)
-        text = self.remove_mentions(text)
-        text = self.remove_hashtags(text)
-        text = self.remove_numbers(text)
-        text = self.remove_punctuations(text)
-        text = self.normalize_arabic_text(text)
-        text = self.remove_diacritics(text)
-        text = self.remove_noise(text)
-        text = self.remove_stopwords(text)
-        text = self.remove_duplicate_words(text)
-        # Remove duplicate phrases
-        text = self.remove_duplicate_phrases(text)
-        # Remove extra whitespace
-        text = ' '.join(text.split())
-        return text
+            logger.debug(f"Preprocessed text: {text}")
+            return text
+        except Exception as e:
+            logger.error(f"Error in preprocess: {str(e)}")
+            return text 
