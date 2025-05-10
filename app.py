@@ -5,6 +5,7 @@ import numpy as np
 import os
 from text_preprocessor import ArabicTextPreprocessor
 from emoji_handler import EmojiHandler
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Set page config
 st.set_page_config(
@@ -78,7 +79,12 @@ def load_models():
 @st.cache_resource
 def load_vectorizer():
     try:
-        return joblib.load(os.path.join('models', 'tfidf_vectorizer.joblib'))
+        vectorizer = joblib.load(os.path.join('models', 'tfidf_vectorizer.joblib'))
+        # Ensure the vectorizer is fitted
+        if not hasattr(vectorizer, 'vocabulary_'):
+            st.error("TF-IDF vectorizer is not properly fitted")
+            return None
+        return vectorizer
     except Exception as e:
         st.error(f"Error loading vectorizer: {str(e)}")
         return None
@@ -118,7 +124,11 @@ def main():
                     processed_text = emoji_handler.process_emojis(processed_text)
 
                     # Vectorize text
-                    text_vectorized = vectorizer.transform([processed_text])
+                    try:
+                        text_vectorized = vectorizer.transform([processed_text])
+                    except Exception as e:
+                        st.error(f"Error vectorizing text: {str(e)}")
+                        return
 
                     # Get predictions
                     sentiment_pred = sentiment_model.predict(text_vectorized)
