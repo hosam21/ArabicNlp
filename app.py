@@ -8,6 +8,8 @@ from emoji_handler import EmojiHandler
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr_matrix, hstack
 from sklearn.preprocessing import StandardScaler
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 # Set page config
 st.set_page_config(
@@ -50,6 +52,11 @@ st.markdown("""
         padding: 20px;
         margin: 10px 0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .arabic-text {
+        direction: rtl;
+        text-align: right;
+        font-family: 'Arial', sans-serif;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -116,6 +123,12 @@ def prepare_features(text, vectorizer, scaler):
     
     return combined_features
 
+def display_arabic_text(text):
+    """Display Arabic text properly"""
+    reshaped_text = arabic_reshaper.reshape(text)
+    bidi_text = get_display(reshaped_text)
+    return f'<div class="arabic-text">{bidi_text}</div>'
+
 def main():
     # Load resources
     text_preprocessor, emoji_handler = load_preprocessors()
@@ -181,7 +194,7 @@ def main():
 
                     # Show processed text
                     with st.expander("View Processed Text"):
-                        st.write(processed_text)
+                        st.markdown(display_arabic_text(processed_text), unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Error processing text: {str(e)}")
         else:
