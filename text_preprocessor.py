@@ -7,30 +7,35 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 import logging
 from emoji_handler import EmojiHandler
+import logging
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Download required NLTK data
+def download_nltk_data():
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        nltk.download('punkt')
+    
+    try:
+        nltk.data.find('corpora/stopwords')
+    except LookupError:
+        nltk.download('stopwords')
+
 class ArabicTextPreprocessor:
     def __init__(self):
+
+        download_nltk_data()
         # Initialize Arabic stopwords
+        
         with open("stop_list.txt", encoding="utf8") as f:
             filtered_sw = {w.strip() for w in f if w.strip()}
         
         self.stop_words = set(filtered_sw)
-        self.punctuations = string.punctuation + '،؛؟'
-        # Define Arabic diacritics pattern
-        self.arabic_diacritics = re.compile("""
-                                         ّ    | # Tashdid
-                                         َ    | # Fatha
-                                         ً    | # Tanwin Fath
-                                         ُ    | # Damma
-                                         ٌ    | # Tanwin Damm
-                                         ِ    | # Kasra
-                                         ٍ    | # Tanwin Kasr
-                                         ْ    | # Sukun
-                                         ـ     # Tatwil/Kashida
-                                         """, re.VERBOSE)
+         
 
         # Define common Arabic noise patterns
         self.noise_patterns = {
