@@ -18,7 +18,7 @@ class ArabicTextPreprocessor:
             filtered_sw = {w.strip() for w in f if w.strip()}
         
         self.stop_words = set(filtered_sw)
-                self.punctuations = string.punctuation + '،؛؟'
+        self.punctuations = string.punctuation + '،؛؟'
         # Define Arabic diacritics pattern
         self.arabic_diacritics = re.compile("""
                                          ّ    | # Tashdid
