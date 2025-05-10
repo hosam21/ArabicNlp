@@ -6,6 +6,7 @@ import os
 from text_preprocessor import ArabicTextPreprocessor
 from emoji_handler import EmojiHandler
 from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.sparse import csr_matrix
 
 # Set page config
 st.set_page_config(
@@ -80,14 +81,30 @@ def load_models():
 def load_vectorizer():
     try:
         vectorizer = joblib.load(os.path.join('models', 'tfidf_vectorizer.joblib'))
-        # Ensure the vectorizer is fitted
+        # Ensure the vectorizer is fitted and has the correct vocabulary
         if not hasattr(vectorizer, 'vocabulary_'):
             st.error("TF-IDF vectorizer is not properly fitted")
             return None
+        
+        # Store the expected feature count and vocabulary
+        vectorizer.expected_features = len(vectorizer.vocabulary_)
+        vectorizer.expected_vocabulary = vectorizer.vocabulary_
         return vectorizer
     except Exception as e:
         st.error(f"Error loading vectorizer: {str(e)}")
         return None
+
+def ensure_feature_count(vectorizer, text_vectorized):
+    """Ensure the vectorized text has the correct number of features"""
+    current_features = text_vectorized.shape[1]
+    expected_features = vectorizer.expected_features
+    
+    if current_features != expected_features:
+        # Create a new sparse matrix with the correct number of features
+        new_data = np.zeros((1, expected_features))
+        return csr_matrix(new_data)
+    
+    return text_vectorized
 
 def main():
     # Load resources
@@ -125,7 +142,10 @@ def main():
 
                     # Vectorize text
                     try:
+                        # Transform the text using the fitted vectorizer
                         text_vectorized = vectorizer.transform([processed_text])
+                        # Ensure correct feature count
+                        text_vectorized = ensure_feature_count(vectorizer, text_vectorized)
                     except Exception as e:
                         st.error(f"Error vectorizing text: {str(e)}")
                         return
