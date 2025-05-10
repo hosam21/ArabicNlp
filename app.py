@@ -79,6 +79,11 @@ def load_models():
         sentiment_encoder = joblib.load(os.path.join(models_dir, 'sentiment_label_encoder.joblib'))
         sarcasm_model = joblib.load(os.path.join(models_dir, 'sarcasm_rf_model.joblib'))
         sarcasm_encoder = joblib.load(os.path.join(models_dir, 'sarcasm_label_encoder.joblib'))
+        
+        # Print available classes for debugging
+        st.write("Available sentiment classes:", sentiment_encoder.classes_)
+        st.write("Available sarcasm classes:", sarcasm_encoder.classes_)
+        
         return sentiment_model, sentiment_encoder, sarcasm_model, sarcasm_encoder
     except Exception as e:
         st.error(f"Error loading models: {str(e)}")
@@ -128,6 +133,19 @@ def display_arabic_text(text):
     reshaped_text = arabic_reshaper.reshape(text)
     bidi_text = get_display(reshaped_text)
     return f'<div class="arabic-text">{bidi_text}</div>'
+
+def get_sentiment_color(label):
+    """Get color based on sentiment label"""
+    if label == 'positive':
+        return "green"
+    elif label == 'negative':
+        return "red"
+    else:  # neutral
+        return "orange"
+
+def get_sarcasm_color(label):
+    """Get color based on sarcasm label"""
+    return "red" if label == 'sarcastic' else "green"
 
 def main():
     # Load resources
@@ -183,11 +201,11 @@ def main():
                     st.markdown("### Results")
                     
                     # Sentiment result
-                    sentiment_color = "green" if sentiment_label == "positive" else "red" if sentiment_label == "negative" else "orange"
+                    sentiment_color = get_sentiment_color(sentiment_label)
                     st.markdown(f"**Sentiment:** <span style='color: {sentiment_color}'>{sentiment_label}</span>", unsafe_allow_html=True)
                     
                     # Sarcasm result
-                    sarcasm_color = "red" if sarcasm_label == "sarcastic" else "green"
+                    sarcasm_color = get_sarcasm_color(sarcasm_label)
                     st.markdown(f"**Sarcasm:** <span style='color: {sarcasm_color}'>{sarcasm_label}</span>", unsafe_allow_html=True)
                     
                     st.markdown('</div>', unsafe_allow_html=True)
