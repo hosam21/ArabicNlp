@@ -6,6 +6,7 @@ from nltk.corpus import stopwords
 import arabic_reshaper
 from bidi.algorithm import get_display
 import logging
+from emoji_handler import EmojiHandler
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -66,6 +67,7 @@ class ArabicTextPreprocessor:
         self.stop_words = self.stop_words - self.positive_words - self.negative_words
         
         logger.info("Initialized ArabicTextPreprocessor")
+        self.emoji_handler = EmojiHandler()
 
     def remove_duplicate_phrases(self, text, max_phrase_length=3):
         """Remove duplicate consecutive phrases"""
@@ -141,11 +143,15 @@ class ArabicTextPreprocessor:
 
     def preprocess(self, text):
         """Apply all preprocessing steps to the text"""
-        if not text:
+        if not isinstance(text, str):
             return ""
 
-        # Convert to string if not already
-        text = str(text)
+        # Process emojis first
+        original_text = text
+        text = self.emoji_handler.process_emojis(text)
+
+        if text != original_text:
+            logger.info(f"Emoji processing changed text from '{original_text}' to '{text}'")
 
         try:
             # Apply preprocessing steps
