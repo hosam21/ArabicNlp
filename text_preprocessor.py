@@ -40,27 +40,31 @@ class ArabicTextPreprocessor:
         
         logger.info("Initialized ArabicTextPreprocessor")
 
-    def remove_duplicate_phrases(self, text, max_phrase_length=3):
-        """Remove duplicate consecutive phrases"""
-        words = text.split()
-        if len(words) <= max_phrase_length:
+    def remove_duplicate_words(self, text):
+
+        if not text:
             return text
 
-        for length in range(max_phrase_length, 0, -1):
-            i = 0
-            while i < len(words) - length:
-                phrase = ' '.join(words[i:i+length])
-                next_phrase = ' '.join(words[i+length:i+2*length])
-                if phrase == next_phrase:
-                    words = words[:i+length] + words[i+2*length:]
-                else:
-                    i += 1
-        return ' '.join(words)
-
-    def remove_duplicate_words(self, text):
-        """Remove duplicate consecutive words"""
         words = text.split()
-        return ' '.join(word for i, word in enumerate(words) if i == 0 or word != words[i-1])
+        if not words:
+            return text
+
+        # Only remove consecutive duplicates
+        result = []
+        prev_word = None
+
+        for word in words:
+            # Only add the word if it's different from the previous word
+            if word != prev_word:
+                result.append(word)
+                prev_word = word
+
+        return ' '.join(result)
+
+    def remove_diacritics(self, text):
+        """Remove Arabic diacritics from text"""
+        text = re.sub(self.arabic_diacritics, '', text)
+        return text
 
     def remove_diacritics(self, text):
         """Remove Arabic diacritics"""
@@ -68,66 +72,81 @@ class ArabicTextPreprocessor:
 
     def remove_urls(self, text):
         """Remove URLs from text"""
-        return re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
+        url_pattern = re.compile(r'https?://\S+|www\.\S+')
+        return url_pattern.sub('', text)
 
     def remove_mentions(self, text):
-        """Remove @mentions from text"""
+        """Remove Twitter mentions"""
         return re.sub(r'@\w+', '', text)
 
     def remove_hashtags(self, text):
-        """Remove #hashtags from text"""
+        """Remove hashtags"""
         return re.sub(r'#\w+', '', text)
 
     def remove_numbers(self, text):
-        """Remove numbers from text"""
+        """Remove numbers"""
         return re.sub(r'\d+', '', text)
 
     def remove_punctuations(self, text):
-        """Remove punctuations from text"""
-        translator = str.maketrans('', '', string.punctuation)
+        """Remove punctuations"""
+        translator = str.maketrans('', '', self.punctuations)
         return text.translate(translator)
 
     def remove_stopwords(self, text):
-        """Remove stopwords from text"""
-        words = word_tokenize(text)
-        return ' '.join(word for word in words if word not in self.stop_words)
+        """Remove Arabic stopwords"""
+        words = text.split()
+        return ' '.join([word for word in words if word not in self.stop_words])
 
     def normalize_arabic_text(self, text):
-        """Normalize Arabic text"""
-        # Reshape Arabic text
-        reshaped_text = arabic_reshaper.reshape(text)
-        # Handle bidirectional text
-        bidi_text = get_display(reshaped_text)
-        return bidi_text
+        """Normalize Arabic text by standardizing characters"""
+        # Normalize Alef variations
+        text = re.sub("[إأآا]", "ا", text)
+        # Normalize Ya variations
+        text = re.sub("ى", "ي", text)
+        # Normalize Ta Marbuta
+        text = re.sub("ة", "ه", text)
+        # Normalize Kaf
+        text = re.sub("گ", "ك", text)
+        # Normalize Waw
+        text = re.sub("ؤ", "و", text)
+        # Normalize Ya with Hamza
+        text = re.sub("ئ", "ي", text)
+        return text
 
     def remove_noise(self, text):
-        """Remove noise from text"""
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text)
-        # Remove special characters
-        text = re.sub(r'[^\w\s]', '', text)
-        return text.strip()
+        """Remove noise patterns from text"""
+        for pattern, replacement in self.noise_patterns.items():
+            text = re.sub(pattern, replacement, text)
+        return text
 
     def preprocess(self, text):
         """Apply all preprocessing steps to the text"""
-        if not text:
+        if not isinstance(text, str):
             return ""
 
-        # Convert to string if not already
-        text = str(text)
+        # Process emojis first
+        original_text = text
+        text = self.emoji_handler.process_emojis(text)
 
-        # Apply preprocessing steps
+        if text != original_text:
+            logger.info(f"Emoji processing changed text from '{original_text}' to '{text}'")
+
+
+
+
+        # Apply other preprocessing steps
         text = self.remove_urls(text)
         text = self.remove_mentions(text)
         text = self.remove_hashtags(text)
         text = self.remove_numbers(text)
         text = self.remove_punctuations(text)
-        text = self.remove_diacritics(text)
         text = self.normalize_arabic_text(text)
-        text = self.remove_duplicate_phrases(text)
-        text = self.remove_duplicate_words(text)
-        text = self.remove_stopwords(text)
+        text = self.remove_diacritics(text)
         text = self.remove_noise(text)
-
-        logger.debug(f"Preprocessed text: {text}")
-        return text 
+        text = self.remove_stopwords(text)
+        text = self.remove_duplicate_words(text)
+        # Remove duplicate phrases
+        text = self.remove_duplicate_phrases(text)
+        # Remove extra whitespace
+        text = ' '.join(text.split())
+        return text
