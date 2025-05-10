@@ -6,7 +6,7 @@ from nltk.corpus import stopwords
 import arabic_reshaper
 from bidi.algorithm import get_display
 import logging
-
+from emoji_handler import EmojiHandler
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
