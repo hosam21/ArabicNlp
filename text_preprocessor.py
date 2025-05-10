@@ -18,6 +18,30 @@ class ArabicTextPreprocessor:
             filtered_sw = {w.strip() for w in f if w.strip()}
         
         self.stop_words = set(filtered_sw)
+                self.punctuations = string.punctuation + '،؛؟'
+        # Define Arabic diacritics pattern
+        self.arabic_diacritics = re.compile("""
+                                         ّ    | # Tashdid
+                                         َ    | # Fatha
+                                         ً    | # Tanwin Fath
+                                         ُ    | # Damma
+                                         ٌ    | # Tanwin Damm
+                                         ِ    | # Kasra
+                                         ٍ    | # Tanwin Kasr
+                                         ْ    | # Sukun
+                                         ـ     # Tatwil/Kashida
+                                         """, re.VERBOSE)
+
+        # Define common Arabic noise patterns
+        self.noise_patterns = {
+            r'[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s]': '',  # Keep only Arabic characters
+            r'\s+': ' ',  # Replace multiple spaces with single space
+            r'[^\w\s]': '',  # Remove special characters
+            r'[a-zA-Z]': '',  # Remove English characters
+        }
+
+        # Initialize emoji handler
+        self.emoji_handler = EmojiHandler()
         
     def remove_duplicate_words(self, text):
 
