@@ -19,27 +19,6 @@ class ArabicTextPreprocessor:
         
         self.stop_words = set(filtered_sw)
         
-        # Define positive and negative words to keep
-        self.positive_words = {
-            "جميل", "رائع", "ممتاز", "لذيذ", "مرح", "سعيد", "مبتهج", "متفائل",
-            "متحمس", "مبهر", "مذهل", "مبشر", "مفعم", "مشرق", "منير", "مضيء",
-            "مبهرج", "ذكي", "لطيف", "كريم", "موهوب", "ودود", "مسؤول", "مفيد",
-            "ملهم", "متحمس"
-        }
-        
-        self.negative_words = {
-            "سيء", "فظيع", "قبيح", "بغيض", "حزين", "شرير", "غاضب", "خائف",
-            "متوتر", "كسول", "قذر", "مقرف", "بشع", "متعجرف", "متعصب",
-            "مثير للاشمئزاز", "كارثي", "مؤلم", "محبط", "مظلم", "قاتم", "مخيف",
-            "مؤذي", "متخلف", "بائس", "مريض", "حقير", "غبي", "أحمق", "متعفن",
-            "مزعج", "مثير للقلق", "مغرض", "وقح", "عدواني", "غير موثوق"
-        }
-        
-        # Remove sentiment words from stopwords
-        self.stop_words = self.stop_words - self.positive_words - self.negative_words
-        
-        logger.info("Initialized ArabicTextPreprocessor")
-
     def remove_duplicate_words(self, text):
 
         if not text:
